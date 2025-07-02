@@ -1,4 +1,6 @@
+
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
 """
 Script to read and pretty print QCEFF table information 
 """
