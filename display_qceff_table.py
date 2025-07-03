@@ -93,23 +93,24 @@ def display_quantity_info(qty_name: str, row: List[str]) -> None:
 
 
 def display_summary_table(data: List[List[str]]) -> None:
+
     """
     Display a summary table of all quantities.
     
     Args:
         data: List of data rows from CSV
     """
-    print(f"\n{'='*144}")
-    print("SUMMARY TABLE")
-    print(f"{'='*144}")
+    print(f"\n{'='*154}")
     
     # Header
-    print(f"{'QUANTITY':<30} {'PROBIT_INFL':<30} {'PROBIT_STATE':<30} {'PROBIT_EXT':<30} {'OBS_INC_INFO':<20}")
-    print(f"{'-'*30} {'-'*30} {'-'*30} {'-'*30} {'-'*20}")
+    print(f"{'QUANTITY':<30} {'PROBIT_INFL':<30} {'PROBIT_STATE':<30} {'PROBIT_EXT':<30} {'FILTER_KIND':<30}")
+    #print(f"{'':<30} {'distribution':<30} {'distribution':<30} {'distribution':<30} {'filter kind':<30}")
+    print(f"{'-'*30} {'-'*30} {'-'*30} {'-'*30} {'-'*30}")
 
     def format_dist(dist, bounded_below, bounded_above, lower, upper):
         # Shorten BOUNDED_NORMAL_RH_DISTRIBUTION
         dist = dist.replace('BOUNDED_NORMAL_RH_DISTRIBUTION', 'BNRH_DISTRIBUTION')
+
         # Truncate long names
         dist_short = dist[:18] + '..' if len(dist) > 20 else dist
         # If normal_distribution, do not show bounds
@@ -132,6 +133,67 @@ def display_summary_table(data: List[List[str]]) -> None:
         if upper_str == '' or upper_str.lower() == 'none' or upper_str == '-888888':
             upper_str = 'inf'
         return f"{dist_short} {left_bracket}{lower_str},{upper_str}{right_bracket}"
+
+    def format_kind(kind, bounded_below, bounded_above, lower, upper):
+            """
+            Format the filter kind for obs_inc_info, with bounds if appropriate.
+            """
+            kind_short = kind[:18] + '..' if len(kind) > 20 else kind
+            kind_upper = kind.strip().upper()
+            # EAKF: no bounds
+            if kind_upper == 'EAKF':
+                return kind_short
+            if kind_upper == 'BOUNDED_NORMAL_RHF':
+                # Format bounds
+                if bounded_below.strip().upper() == 'TRUE' or bounded_below.strip() == '.true.':
+                    left_bracket = '['
+                else:
+                    left_bracket = '('
+                if bounded_above.strip().upper() == 'TRUE' or bounded_above.strip() == '.true.':
+                    right_bracket = ']'
+                else:
+                    right_bracket = ')'
+                # Handle inf/-inf
+                lower_str = lower.strip()
+                upper_str = upper.strip()
+                if lower_str == '' or lower_str.lower() == 'none' or lower_str == '-888888':
+                    lower_str = '-inf'
+                if upper_str == '' or upper_str.lower() == 'none' or upper_str == '-888888':
+                    upper_str = 'inf'
+                return f"{kind_short} {left_bracket}{lower_str},{upper_str}{right_bracket}"
+            if kind_upper == 'KDE_DISTRIBUTION':
+                # Format bounds
+                if bounded_below.strip().upper() == 'TRUE' or bounded_below.strip() == '.true.':
+                    left_bracket = '['
+                else:
+                    left_bracket = '('
+                if bounded_above.strip().upper() == 'TRUE' or bounded_above.strip() == '.true.':
+                    right_bracket = ']'
+                else:
+                    right_bracket = ')'
+                # Handle inf/-inf
+                lower_str = lower.strip()
+                upper_str = upper.strip()
+                if lower_str == '' or lower_str.lower() == 'none' or lower_str == '-888888':
+                    lower_str = '-inf'
+                if upper_str == '' or upper_str.lower() == 'none' or upper_str == '-888888':
+                    upper_str = 'inf'
+                return f"{kind_short} {left_bracket}{lower_str},{upper_str}{right_bracket}"
+            # GAMMA_DISTRIBUTION: lower bound at 0
+            if kind_upper == 'GAMMA_DISTRIBUTION':
+                return f"{kind_short} [0,inf)"
+            # BETA_DISTRIBUTION: [0,1]
+            if kind_upper == 'BETA_DISTRIBUTION':
+                return f"{kind_short} [0,1]"
+            # LOG_NORMAL_DISTRIBUTION: lower bound at 0
+            if kind_upper == 'LOG_NORMAL_DISTRIBUTION':
+                return f"{kind_short} [0,inf)"
+            # UNIFORM_DISTRIBUTION: use bounds if available
+            if kind_upper == 'UNIFORM_DISTRIBUTION':
+                return kind_short
+            # Default: just the kind name
+            return kind_short
+
 
     for row in data:
         qty_name = row[0].replace('QTY_', '')
@@ -159,10 +221,14 @@ def display_summary_table(data: List[List[str]]) -> None:
         probit_ext_up = row[19] if len(row) > 19 else ''
         probit_ext = format_dist(probit_ext_dist, probit_ext_below, probit_ext_above, probit_ext_low, probit_ext_up)
 
-        obs_inc_info = row[20] if len(row) > 20 else 'N/A'
-        obs_inc_info = obs_inc_info[:18] + '..' if len(obs_inc_info) > 20 else obs_inc_info
+        filter_kind = row[20] + '..' if len(row[20]) > 20 else row[20]
+        obs_inc_below = row[21] if len(row) > 21 else ''
+        obs_inc_above = row[22] if len(row) > 22 else ''
+        obs_inc_low = row[23] if len(row) > 23 else ''
+        obs_inc_up = row[24] if len(row) > 24 else ''
+        obs_inc_info = format_kind(filter_kind, obs_inc_below, obs_inc_above, obs_inc_low, obs_inc_up)
 
-        print(f"{qty_name:<30} {probit_infl:<30} {probit_state:<30} {probit_ext:<30} {obs_inc_info:<20}")
+        print(f"{qty_name:<30} {probit_infl:<30} {probit_state:<30} {probit_ext:<30} {obs_inc_info:<30}")
 
 
 def main():
@@ -179,7 +245,6 @@ def main():
         # Read the CSV file
         table_data = read_qceff_table(filename)
 
-        print(f"QCEFF Table Display")
         print(f"File: {filename}")
         print(f"Version: {table_data['version']}")
 
@@ -198,7 +263,8 @@ def main():
 
             print(f"\n{'='*80}")
             print("END OF REPORT")
-            print(f"{'='*80}")
+            
+        print(f"{'='*154}")
 
     except FileNotFoundError:
         print(f"Error: File '{filename}' not found.")
